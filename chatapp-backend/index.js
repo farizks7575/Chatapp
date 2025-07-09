@@ -7,7 +7,7 @@ const { injectIO, setUserSockets } = require('./Controller/messageController');
 require('./DB/connection');
 
 const app = express();
-app.use(cors({ origin: 'https://zingy-mandazi-88d894.netlify.app' }));
+app.use(cors({ origin: 'https://darling-malasada-c7e530.netlify.app' }));
 app.use(express.json());
 app.use('/uploads', express.static('./Uploads'));
 app.use(router);
@@ -15,7 +15,7 @@ app.use(router);
 const server = http.createServer(app);
 const { Server } = require('socket.io');
 const io = new Server(server, {
-  cors: { origin: 'https://zingy-mandazi-88d894.netlify.app', methods: ['GET', 'POST', 'PUT', 'DELETE'] }, // Added DELETE method for completeness
+  cors: { origin: 'https://darling-malasada-c7e530.netlify.app', methods: ['GET', 'POST', 'PUT', 'DELETE'] }, // Added DELETE method for completeness
 });
 
 const users = {};
