@@ -1,29 +1,37 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import Navbar from '../user/Navbar';
 import { MDBListGroup, MDBListGroupItem } from 'mdb-react-ui-kit';
 import { getRequestAPI, updateRequestStatusAPI } from '../../Service/allapi';
 import { server_url } from '../../Service/server_url';
-import socket from '../socket'; // Import centralized socket
+import socket from '../socket';
+
+// Utility for auth headers
+const getAuthHeaders = () => {
+  const token = sessionStorage.getItem('token');
+  if (!token) throw new Error('Authentication token missing');
+  return { Authorization: `Bearer ${token}` };
+};
+
+// Utility for image error handling
+const handleImageError = (e) => {
+  e.target.src = `${server_url}/Uploads/default.jpg`;
+};
 
 function Request() {
   const [requests, setRequests] = useState([]);
   const userId = sessionStorage.getItem('userId');
   const token = sessionStorage.getItem('token');
 
-  const fetchRequests = async () => {
+  const fetchRequests = useCallback(async () => {
     try {
-      if (!token) {
-        console.error('Token not found');
-        return;
-      }
-      const headers = { Authorization: `Bearer ${token}` };
+      const headers = getAuthHeaders();
       const res = await getRequestAPI(headers);
-      setRequests(res?.data || []);
+      setRequests(Array.isArray(res?.data) ? res.data : []);
     } catch (err) {
       console.error('Failed to fetch requests:', err);
       setRequests([]);
     }
-  };
+  }, [token]);
 
   useEffect(() => {
     if (userId && token) {
@@ -31,23 +39,19 @@ function Request() {
       socket.emit('register_user', userId);
 
       socket.on('new_request', () => {
-        fetchRequests(); // Refresh requests when a new one is received
+        fetchRequests();
       });
-    }
 
-    return () => {
-      socket.off('new_request');
-    };
-  }, [userId, token]);
+      return () => {
+        socket.off('new_request');
+      };
+    }
+  }, [userId, token, fetchRequests]);
 
   const handleUpdateStatus = async (requestId, status) => {
     try {
-      if (!token) {
-        console.error('Token not found');
-        return;
-      }
       const headers = {
-        Authorization: `Bearer ${token}`,
+        ...getAuthHeaders(),
         'Content-Type': 'application/json',
       };
       const res = await updateRequestStatusAPI(requestId, status, headers);
@@ -69,15 +73,16 @@ function Request() {
       <Navbar />
       <MDBListGroup style={{ marginLeft: '50px', width: '1070px', marginTop: '32px' }} light>
         {requests.length === 0 ? (
-        <div className="text-center mt-5">
-          <img
-            src="/notification.png"
-            alt="No requests illustration"
-            className="mb-3"
-            style={{ width: '270px', marginTop: '25px', opacity: '0.7' }}
-          />
-          <p className="text-muted fs-5">No Requests</p>
-        </div>
+          <div className="text-center mt-5">
+            <img
+              src="/notification.png"
+              alt="No requests illustration"
+              className="mb-3"
+              style={{ width: '270px', marginTop: '25px', opacity: '0.7' }}
+              onError={handleImageError}
+            />
+            <p className="text-muted fs-5">No Requests</p>
+          </div>
         ) : (
           requests.map((r) => (
             <MDBListGroupItem
@@ -100,11 +105,11 @@ function Request() {
                     border: '2px solid #ddd',
                     marginRight: '12px',
                   }}
-                  onError={(e) => {
-                    e.target.src = `${server_url}/Uploads/default.jpg`;
-                  }}
+                  onError={handleImageError}
                 />
-                <h5 style={{ fontWeight: 600, marginLeft:'5px',marginTop:'10px' }}>{r.senderId?.name || 'Unknown'}</h5>
+                <h5 style={{ fontWeight: 600, marginLeft: '5px', marginTop: '10px' }}>
+                  {r.senderId && r.senderId.name ? r.senderId.name : 'Unknown'}
+                </h5>
               </div>
               <div style={{ display: 'flex', gap: '10px' }}>
                 <button

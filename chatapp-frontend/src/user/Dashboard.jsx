@@ -7,6 +7,18 @@ import { MDBContainer, MDBRow, MDBCol, MDBCard, MDBCardBody, MDBInputGroup, MDBI
 import socket from '../socket';
 import EmojiPicker from 'emoji-picker-react';
 
+// Utility for auth headers
+const getAuthHeaders = () => {
+  const token = sessionStorage.getItem('token');
+  if (!token) throw new Error('Authentication token missing');
+  return { Authorization: `Bearer ${token}` };
+};
+
+// Utility for image error handling
+const handleImageError = (e) => {
+  e.target.src = `${server_url}/Uploads/default.jpg`;
+};
+
 function Dashboard() {
   const [acceptedUsers, setAcceptedUsers] = useState([]);
   const [selectedUser, setSelectedUser] = useState(null);
@@ -25,12 +37,13 @@ function Dashboard() {
     try {
       if (!token || !userId) return;
 
-      const headers = { Authorization: `Bearer ${token}` };
+      const headers = getAuthHeaders();
       const res = await getAcceptedRequestsAPI(headers);
+      const users = Array.isArray(res?.data) ? res.data : [];
       const usersWithLastMessages = await Promise.all(
-        (res?.data || []).map(async (user) => {
+        users.map(async (user) => {
           const msgRes = await getMessagesAPI(userId, user._id, headers);
-          const msgs = msgRes?.data || [];
+          const msgs = Array.isArray(msgRes?.data) ? msgRes.data : [];
           return {
             ...user,
             lastMessage: msgs.length ? msgs[msgs.length - 1] : null,
@@ -39,7 +52,7 @@ function Dashboard() {
       );
       setAcceptedUsers(usersWithLastMessages);
     } catch (err) {
-      console.error('Error fetching accepted users or messages:', err);
+      console.error('Error fetching accepted users:', err);
       setAcceptedUsers([]);
     }
   };
@@ -47,9 +60,9 @@ function Dashboard() {
   // Fetch messages for selected user
   const fetchMessages = async (receiverId) => {
     try {
-      const headers = { Authorization: `Bearer ${token}` };
+      const headers = getAuthHeaders();
       const res = await getMessagesAPI(userId, receiverId, headers);
-      const fetchedMessages = res?.data || [];
+      const fetchedMessages = Array.isArray(res?.data) ? res.data : [];
       messageIds.current.clear();
       setMessages([]);
       fetchedMessages.forEach((msg) => {
@@ -73,7 +86,7 @@ function Dashboard() {
   const handleSendMessage = async () => {
     if (!newMessage.trim() || !selectedUser) return;
     try {
-      const headers = { Authorization: `Bearer ${token}` };
+      const headers = getAuthHeaders();
       const body = { sender: userId, receiver: selectedUser._id, content: newMessage };
       const res = await sendmessageAPI(body, headers);
       const sentMessage = res.data;
@@ -100,7 +113,7 @@ function Dashboard() {
   // Handle deleting a message
   const handleDeleteMessage = async (messageId) => {
     try {
-      const headers = { Authorization: `Bearer ${token}` };
+      const headers = getAuthHeaders();
       await deleteMessageAPI(messageId, headers);
       setMessages((prev) => prev.filter((msg) => msg._id !== messageId));
       messageIds.current.delete(messageId);
@@ -134,17 +147,16 @@ function Dashboard() {
       socket.emit('register_user', userId);
 
       const handleRequestAccepted = () => {
-        console.log('Request accepted event received');
         fetchAccepted();
       };
 
       const handleReceiveMessage = (message) => {
-        console.log('Received message:', message);
         if (
           message._id &&
           !messageIds.current.has(message._id) &&
           message.sender !== userId &&
-          (message.sender === selectedUser?._id || message.receiver === selectedUser._id)
+          selectedUser &&
+          (message.sender === selectedUser._id || message.receiver === selectedUser._id)
         ) {
           setMessages((prev) => [...prev, message]);
           messageIds.current.add(message._id);
@@ -210,15 +222,13 @@ function Dashboard() {
                                 <div className="d-flex flex-row">
                                   <img
                                     src={`${server_url}/Uploads/${u.image || 'default.jpg'}`}
-                                    onError={(e) => {
-                                      e.target.src = `${server_url}/Uploads/default.jpg`;
-                                    }}
                                     alt="avatar"
                                     width="60"
                                     style={{ borderRadius: '50%', objectFit: 'cover' }}
+                                    onError={handleImageError}
                                   />
                                   <div className="pt-1 ps-4">
-                                    <p className="fw-bold mb-0">{u.name}</p>
+                                    <p className="fw-bold mb-0">{u.name || 'Unnamed'}</p>
                                     <p className="small text-muted">You're now connected</p>
                                   </div>
                                 </div>
@@ -279,9 +289,7 @@ function Dashboard() {
                                     src={`${server_url}/Uploads/${selectedUser.image || 'default.jpg'}`}
                                     alt="avatar"
                                     style={{ width: '45px', height: '45px', borderRadius: '50%' }}
-                                    onError={(e) => {
-                                      e.target.src = `${server_url}/Uploads/default.jpg`;
-                                    }}
+                                    onError={handleImageError}
                                   />
                                 )}
                                 <div style={{ position: 'relative' }}>
@@ -349,9 +357,7 @@ function Dashboard() {
                                     src={`${server_url}/Uploads/${userImage}`}
                                     alt="avatar"
                                     style={{ width: '45px', height: '45px', borderRadius: '50%' }}
-                                    onError={(e) => {
-                                      e.target.src = `${server_url}/Uploads/default.jpg`;
-                                    }}
+                                    onError={handleImageError}
                                   />
                                 )}
                               </div>
@@ -371,9 +377,7 @@ function Dashboard() {
                             src={`${server_url}/Uploads/${userImage}`}
                             alt="avatar"
                             style={{ width: '40px', height: '40px', borderRadius: '50%' }}
-                            onError={(e) => {
-                              e.target.src = `${server_url}/Uploads/default.jpg`;
-                            }}
+                            onError={handleImageError}
                           />
                           <input
                             type="text"
